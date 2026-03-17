@@ -2,10 +2,12 @@ package display
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/mattn/go-runewidth"
 
 	"github.com/NaruseYuki/ramen-github-manager/internal/config"
 	"github.com/NaruseYuki/ramen-github-manager/internal/model"
@@ -21,7 +23,38 @@ var (
 	dim       = color.New(color.Faint).SprintFunc()
 	boldGreen = color.New(color.Bold, color.FgGreen).SprintFunc()
 	boldRed   = color.New(color.Bold, color.FgRed).SprintFunc()
+
+	sep      = dim("│")
+	ansiRe   = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 )
+
+// displayWidth returns the visible terminal width, ignoring ANSI escape codes.
+func displayWidth(s string) int {
+	return runewidth.StringWidth(ansiRe.ReplaceAllString(s, ""))
+}
+
+// pad pads s with trailing spaces to the given visible width (ANSI-aware).
+func pad(s string, width int) string {
+	w := displayWidth(s)
+	if w >= width {
+		return s
+	}
+	return s + strings.Repeat(" ", width-w)
+}
+
+// padNum right-aligns a number string to the given width.
+func padNum(s string, width int) string {
+	w := displayWidth(s)
+	if w >= width {
+		return s
+	}
+	return strings.Repeat(" ", width-w) + s
+}
+
+// trunc truncates s to max visible columns, appending "…" if truncated.
+func trunc(s string, max int) string {
+	return runewidth.Truncate(s, max, "…")
+}
 
 func stateIcon(state string) string {
 	switch state {
@@ -54,22 +87,13 @@ func timeAgo(t time.Time) string {
 	}
 }
 
-func truncate(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	return s[:max-1] + "…"
-}
-
-func formatLabels(labels []string) string {
+func formatLabels(labels []string, maxWidth int) string {
 	if len(labels) == 0 {
 		return dim("—")
 	}
-	colored := make([]string, len(labels))
-	for i, l := range labels {
-		colored[i] = yellow(l)
-	}
-	return strings.Join(colored, ", ")
+	plain := strings.Join(labels, ", ")
+	truncated := trunc(plain, maxWidth)
+	return yellow(truncated)
 }
 
 // IssueTable prints issues in a table format.
@@ -79,12 +103,26 @@ func IssueTable(items []model.IssueItem, cfg *model.Config) {
 		return
 	}
 
+	const (
+		wRepo    = 10
+		wNum     = 5
+		wTitle   = 36
+		wLabels  = 18
+		wAssign  = 12
+		wUpdate  = 8
+	)
+
 	fmt.Printf("\n%s\n\n", bold(fmt.Sprintf("📋 Issues (%d total)", len(items))))
 
 	// Header
-	fmt.Printf("  %-10s %-5s %-40s %-20s %-12s %s\n",
-		dim("REPO"), dim("#"), dim("TITLE"), dim("LABELS"), dim("ASSIGNEE"), dim("UPDATED"))
-	fmt.Printf("  %s\n", dim(strings.Repeat("─", 100)))
+	fmt.Printf("  %s %s %s %s %s %s %s %s %s %s %s\n",
+		pad(dim("REPO"), wRepo), sep,
+		pad(dim("#"), wNum), sep,
+		pad(dim("TITLE"), wTitle), sep,
+		pad(dim("LABELS"), wLabels), sep,
+		pad(dim("ASSIGNEE"), wAssign), sep,
+		dim("UPDATED"))
+	fmt.Printf("  %s\n", dim(strings.Repeat("─", wRepo+wNum+wTitle+wLabels+wAssign+wUpdate+17)))
 
 	for _, item := range items {
 		alias := config.AliasFor(cfg, item.Repo)
@@ -93,13 +131,12 @@ func IssueTable(items []model.IssueItem, cfg *model.Config) {
 			assignee = dim("—")
 		}
 
-		fmt.Printf("  %-10s %s%-4d %-40s %-20s %-12s %s\n",
-			cyan(alias),
-			stateIcon(item.State),
-			item.Number,
-			truncate(item.Title, 38),
-			truncate(formatLabels(item.Labels), 18),
-			truncate(assignee, 10),
+		fmt.Printf("  %s %s %s%s %s %s %s %s %s %s %s %s\n",
+			pad(cyan(alias), wRepo), sep,
+			stateIcon(item.State), pad(fmt.Sprintf("%d", item.Number), wNum-1), sep,
+			pad(trunc(item.Title, wTitle), wTitle), sep,
+			pad(formatLabels(item.Labels, wLabels), wLabels), sep,
+			pad(trunc(assignee, wAssign), wAssign), sep,
 			dim(timeAgo(item.UpdatedAt)),
 		)
 	}
@@ -119,7 +156,7 @@ func IssueDetail(item *model.IssueItem, comments []model.Comment, cfg *model.Con
 		fmt.Printf("  Assignee: %s\n", item.Assignee)
 	}
 	if len(item.Labels) > 0 {
-		fmt.Printf("  Labels:   %s\n", formatLabels(item.Labels))
+		fmt.Printf("  Labels:   %s\n", formatLabels(item.Labels, 60))
 	}
 	fmt.Printf("  Created:  %s\n", item.CreatedAt.Format("2006-01-02 15:04"))
 	fmt.Printf("  Updated:  %s\n", item.UpdatedAt.Format("2006-01-02 15:04"))
@@ -148,19 +185,33 @@ func PRTable(items []model.PRItem, cfg *model.Config) {
 		return
 	}
 
+	const (
+		wRepo   = 10
+		wNum    = 5
+		wTitle  = 34
+		wAuthor = 12
+		wReview = 3
+		wDiff   = 14
+		wUpdate = 8
+	)
+
 	fmt.Printf("\n%s\n\n", bold(fmt.Sprintf("🔀 Pull Requests (%d total)", len(items))))
 
-	fmt.Printf("  %-10s %-5s %-38s %-12s %-10s %-10s %s\n",
-		dim("REPO"), dim("#"), dim("TITLE"), dim("AUTHOR"), dim("STATUS"), dim("+/-"), dim("UPDATED"))
-	fmt.Printf("  %s\n", dim(strings.Repeat("─", 100)))
+	fmt.Printf("  %s %s %s %s %s %s %s %s %s %s %s %s %s\n",
+		pad(dim("REPO"), wRepo), sep,
+		pad(dim("#"), wNum), sep,
+		pad(dim("TITLE"), wTitle), sep,
+		pad(dim("AUTHOR"), wAuthor), sep,
+		pad(dim("RV"), wReview), sep,
+		pad(dim("+/-"), wDiff), sep,
+		dim("UPDATED"))
+	fmt.Printf("  %s\n", dim(strings.Repeat("─", wRepo+wNum+wTitle+wAuthor+wReview+wDiff+wUpdate+19)))
 
 	for _, item := range items {
 		alias := config.AliasFor(cfg, item.Repo)
 
-		state := item.State
-		icon := stateIcon(state)
+		icon := stateIcon(item.State)
 		if item.Merged {
-			state = "merged"
 			icon = magenta("●")
 		}
 		if item.Draft {
@@ -177,16 +228,17 @@ func PRTable(items []model.PRItem, cfg *model.Config) {
 			review = yellow("○")
 		}
 
-		diffStr := fmt.Sprintf("%s/%s", boldGreen(fmt.Sprintf("+%d", item.Additions)), boldRed(fmt.Sprintf("-%d", item.Deletions)))
+		diffStr := fmt.Sprintf("%s/%s",
+			boldGreen(fmt.Sprintf("+%d", item.Additions)),
+			boldRed(fmt.Sprintf("-%d", item.Deletions)))
 
-		fmt.Printf("  %-10s %s%-4d %-38s %-12s %s %-8s %s\n",
-			cyan(alias),
-			icon,
-			item.Number,
-			truncate(item.Title, 36),
-			truncate(item.Author, 10),
-			review,
-			diffStr,
+		fmt.Printf("  %s %s %s%s %s %s %s %s %s %s %s %s %s %s\n",
+			pad(cyan(alias), wRepo), sep,
+			icon, pad(fmt.Sprintf("%d", item.Number), wNum-1), sep,
+			pad(trunc(item.Title, wTitle), wTitle), sep,
+			pad(trunc(item.Author, wAuthor), wAuthor), sep,
+			pad(review, wReview), sep,
+			pad(diffStr, wDiff), sep,
 			dim(timeAgo(item.UpdatedAt)),
 		)
 	}
@@ -217,7 +269,7 @@ func PRDetail(item *model.PRItem, comments []model.Comment, reviewStatus string,
 		fmt.Printf("  Draft:    %s\n", yellow("yes"))
 	}
 	if len(item.Labels) > 0 {
-		fmt.Printf("  Labels:   %s\n", formatLabels(item.Labels))
+		fmt.Printf("  Labels:   %s\n", formatLabels(item.Labels, 60))
 	}
 	fmt.Printf("  Created:  %s\n", item.CreatedAt.Format("2006-01-02 15:04"))
 	fmt.Printf("  Updated:  %s\n", item.UpdatedAt.Format("2006-01-02 15:04"))

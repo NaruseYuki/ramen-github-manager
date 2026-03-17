@@ -17,9 +17,20 @@ func Dashboard(stats *model.DashboardStats, cfg *model.Config) {
 
 	// Overview table
 	fmt.Printf("%s\n\n", bold("📊 Overview"))
-	fmt.Printf("  %-30s %12s %10s %12s\n",
-		dim("Repository"), dim("Open Issues"), dim("Open PRs"), dim("Stale(>30d)"))
-	fmt.Printf("  %s\n", dim(strings.Repeat("─", 65)))
+
+	const (
+		wRepo  = 20
+		wIssue = 12
+		wPR    = 10
+		wStale = 12
+	)
+
+	fmt.Printf("  %s %s %s %s %s %s %s\n",
+		pad(dim("Repository"), wRepo), sep,
+		pad(dim("Open Issues"), wIssue), sep,
+		pad(dim("Open PRs"), wPR), sep,
+		dim("Stale(>30d)"))
+	fmt.Printf("  %s\n", dim(strings.Repeat("─", wRepo+wIssue+wPR+wStale+10)))
 
 	totalIssues := 0
 	totalPRs := 0
@@ -31,20 +42,26 @@ func Dashboard(stats *model.DashboardStats, cfg *model.Config) {
 			staleStr = yellow(staleStr)
 		}
 
-		fmt.Printf("  %-30s %12d %10d %12s\n",
-			alias, rs.OpenIssues, rs.OpenPRs, staleStr)
+		fmt.Printf("  %s %s %s %s %s %s %s\n",
+			pad(alias, wRepo), sep,
+			padNum(fmt.Sprintf("%d", rs.OpenIssues), wIssue), sep,
+			padNum(fmt.Sprintf("%d", rs.OpenPRs), wPR), sep,
+			padNum(staleStr, wStale))
 		totalIssues += rs.OpenIssues
 		totalPRs += rs.OpenPRs
 		totalStale += rs.StaleIssueCount
 	}
-	fmt.Printf("  %s\n", dim(strings.Repeat("─", 65)))
+	fmt.Printf("  %s\n", dim(strings.Repeat("─", wRepo+wIssue+wPR+wStale+10)))
 
 	totalStaleStr := fmt.Sprintf("%d", totalStale)
 	if totalStale > 0 {
 		totalStaleStr = yellow(totalStaleStr)
 	}
-	fmt.Printf("  %-30s %12d %10d %12s\n\n",
-		bold("Total"), totalIssues, totalPRs, totalStaleStr)
+	fmt.Printf("  %s %s %s %s %s %s %s\n\n",
+		pad(bold("Total"), wRepo), sep,
+		padNum(bold(fmt.Sprintf("%d", totalIssues)), wIssue), sep,
+		padNum(bold(fmt.Sprintf("%d", totalPRs)), wPR), sep,
+		padNum(totalStaleStr, wStale))
 
 	// Recent activity
 	if len(stats.RecentIssues) > 0 || len(stats.RecentPRs) > 0 {
@@ -78,7 +95,7 @@ func Dashboard(stats *model.DashboardStats, cfg *model.Config) {
 			alias := config.AliasFor(cfg, item.Repo)
 			days := int(time.Since(item.UpdatedAt).Hours() / 24)
 			fmt.Printf("  • [%s#%d] %s — %s\n",
-				alias, item.Number, truncate(item.Title, 40),
+				alias, item.Number, trunc(item.Title, 40),
 				yellow(fmt.Sprintf("stale for %d days", days)))
 		}
 		fmt.Println()
@@ -91,7 +108,7 @@ func Dashboard(stats *model.DashboardStats, cfg *model.Config) {
 			alias := config.AliasFor(cfg, item.Repo)
 			waiting := timeAgo(item.CreatedAt)
 			fmt.Printf("  • [%s#%d] %s — waiting %s\n",
-				alias, item.Number, truncate(item.Title, 40),
+				alias, item.Number, trunc(item.Title, 40),
 				cyan(waiting))
 		}
 		fmt.Println()
@@ -122,7 +139,7 @@ func WeeklyReport(
 		fmt.Printf("  %s\n", bold("Closed Issues:"))
 		for _, item := range closedIssues {
 			alias := config.AliasFor(cfg, item.Repo)
-			fmt.Printf("    ✓ [%s#%d] %s\n", alias, item.Number, truncate(item.Title, 50))
+			fmt.Printf("    ✓ [%s#%d] %s\n", alias, item.Number, trunc(item.Title, 50))
 		}
 		fmt.Println()
 	}
@@ -131,7 +148,7 @@ func WeeklyReport(
 		fmt.Printf("  %s\n", bold("Merged PRs:"))
 		for _, item := range mergedPRs {
 			alias := config.AliasFor(cfg, item.Repo)
-			fmt.Printf("    ● [%s#%d] %s\n", alias, item.Number, truncate(item.Title, 50))
+			fmt.Printf("    ● [%s#%d] %s\n", alias, item.Number, trunc(item.Title, 50))
 		}
 		fmt.Println()
 	}
