@@ -10,26 +10,42 @@ import (
 )
 
 const (
-	configDir  = "ramen-github-manager"
+	configDir  = "rgm"
 	configFile = "config.yaml"
 )
 
-// DefaultConfig returns the default configuration for the ramen project.
+// DefaultConfig returns an empty configuration with sensible defaults.
 func DefaultConfig() *model.Config {
 	return &model.Config{
-		Owner: "NaruseYuki",
-		Repositories: []model.RepoConfig{
-			{Name: "ramen_recommendation", Alias: "mobile"},
-			{Name: "ramen_recommendation_backend", Alias: "backend"},
-			{Name: "ramen-infrastructure", Alias: "infra"},
-			{Name: "ramen_recommendation_design", Alias: "design"},
-		},
+		Repositories: []model.RepoConfig{},
 		Defaults: model.Defaults{
 			Sort:  "updated",
 			Limit: 30,
 			State: "open",
 		},
 	}
+}
+
+// AddRepo adds a repository to the config. Returns error if already exists.
+func AddRepo(cfg *model.Config, name, alias string) error {
+	for _, r := range cfg.Repositories {
+		if r.Name == name {
+			return fmt.Errorf("repository %q already exists", name)
+		}
+	}
+	cfg.Repositories = append(cfg.Repositories, model.RepoConfig{Name: name, Alias: alias})
+	return nil
+}
+
+// RemoveRepo removes a repository from the config. Returns error if not found.
+func RemoveRepo(cfg *model.Config, nameOrAlias string) error {
+	for i, r := range cfg.Repositories {
+		if r.Name == nameOrAlias || r.Alias == nameOrAlias {
+			cfg.Repositories = append(cfg.Repositories[:i], cfg.Repositories[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("repository %q not found", nameOrAlias)
 }
 
 // ConfigPath returns the full path to the configuration file.

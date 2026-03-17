@@ -20,15 +20,12 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "rgm",
-	Short: "🍜 Ramen GitHub Manager — manage issues and PRs across repositories",
+	Short: "rgm — manage GitHub issues and PRs across multiple repositories",
 	Long: `rgm is a CLI tool for centrally managing GitHub Issues and Pull Requests
-across all Ramen Recommendation project repositories.
+across multiple repositories in a project.
 
-Repositories managed:
-  mobile   → ramen_recommendation
-  backend  → ramen_recommendation_backend
-  infra    → ramen-infrastructure
-  design   → ramen_recommendation_design`,
+Run 'rgm config init' to set up your project, then use 'rgm issue list'
+or 'rgm dashboard' to get started.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Skip config/client init for config init command
 		if cmd.Name() == "init" && cmd.Parent() != nil && cmd.Parent().Name() == "config" {

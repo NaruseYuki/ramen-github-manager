@@ -12,7 +12,7 @@ import (
 // Dashboard renders the project dashboard.
 func Dashboard(stats *model.DashboardStats, cfg *model.Config) {
 	now := time.Now()
-	fmt.Printf("\n%s %s\n", bold("🍜 Ramen Project Dashboard"), dim(now.Format("2006-01-02")))
+	fmt.Printf("\n%s %s\n", bold("📊 Project Dashboard"), dim(now.Format("2006-01-02")))
 	fmt.Printf("%s\n\n", dim(strings.Repeat("═", 65)))
 
 	// Overview table
