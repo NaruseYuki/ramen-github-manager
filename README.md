@@ -1,6 +1,7 @@
-# 🍜 ramen-github-manager (rgm)
+# rgm — GitHub Multi-Repo Manager
 
-ラーメンレコメンドプロジェクトの複数リポジトリのGitHub Issue/PRを一元管理するCLIツール。
+複数のGitHubリポジトリのIssue/PRをターミナルから一元管理するCLIツール。
+任意のプロジェクトで使えます。
 
 ## インストール
 
@@ -15,8 +16,13 @@ make install
 ## 初期設定
 
 ```bash
-# デフォルト設定ファイルを作成
+# 対話的に設定（owner + リポジトリを入力）
 rgm config init
+
+# または手動でリポジトリを追加
+rgm config set-owner your-org
+rgm config add-repo your-app --alias app
+rgm config add-repo your-api --alias api
 
 # 設定を確認
 rgm config show
@@ -31,25 +37,25 @@ rgm config show
 rgm issue list
 
 # 特定リポジトリのみ（エイリアス使用可）
-rgm issue list -r mobile
-rgm issue list -r backend --state closed
+rgm issue list -r app
+rgm issue list -r api --state closed
 
 # ラベル・アサイニーでフィルタ
 rgm issue list -l bug -l urgent
-rgm issue list -a NaruseYuki
+rgm issue list -a username
 
 # Issue詳細
-rgm issue view mobile 215
+rgm issue view app 42
 
 # Issue作成
-rgm issue create mobile -t "新しい機能" -b "詳細説明"
+rgm issue create app -t "新しい機能" -b "詳細説明"
 
 # Issue操作
-rgm issue close mobile 215
-rgm issue reopen mobile 215
-rgm issue label mobile 215 --add bug --add urgent
-rgm issue assign mobile 215 NaruseYuki
-rgm issue comment mobile 215 -b "コメント内容"
+rgm issue close app 42
+rgm issue reopen app 42
+rgm issue label app 42 --add bug --add urgent
+rgm issue assign app 42 username
+rgm issue comment app 42 -b "コメント内容"
 ```
 
 ### PR 管理
@@ -58,17 +64,15 @@ rgm issue comment mobile 215 -b "コメント内容"
 # 全リポジトリのPR一覧
 rgm pr list
 
-# 特定リポジトリ・フィルタ
-rgm pr list -r backend --state open
-rgm pr list -a NaruseYuki
+# フィルタ
+rgm pr list -r api --state open
+rgm pr list -a username
 
-# PR詳細
-rgm pr view mobile 216
-
-# PR操作
-rgm pr approve mobile 216
-rgm pr merge mobile 216 -m squash
-rgm pr comment mobile 216 -b "LGTM!"
+# PR詳細・操作
+rgm pr view app 100
+rgm pr approve app 100
+rgm pr merge app 100 -m squash
+rgm pr comment app 100 -b "LGTM!"
 ```
 
 ### ダッシュボード
@@ -77,21 +81,20 @@ rgm pr comment mobile 216 -b "LGTM!"
 # プロジェクト全体の概要
 rgm dashboard
 
-# 週次レポート
+# 週次 / 月次レポート
 rgm dashboard --weekly
-
-# 月次レポート
 rgm dashboard --monthly
 ```
 
-## リポジトリエイリアス
+### 設定管理
 
-| エイリアス | リポジトリ |
-|-----------|-----------|
-| `mobile` | ramen_recommendation |
-| `backend` | ramen_recommendation_backend |
-| `infra` | ramen-infrastructure |
-| `design` | ramen_recommendation_design |
+```bash
+rgm config show                          # 現在の設定を表示
+rgm config set-owner new-org             # owner変更
+rgm config add-repo new-repo --alias nr  # リポジトリ追加
+rgm config remove-repo old-repo          # リポジトリ削除
+rgm config path                          # 設定ファイルのパス
+```
 
 ## 認証
 
@@ -101,19 +104,17 @@ rgm dashboard --monthly
 
 ## 設定ファイル
 
-`~/.config/ramen-github-manager/config.yaml`
+`~/.config/rgm/config.yaml`
 
 ```yaml
-owner: NaruseYuki
+owner: your-org
 repositories:
-  - name: ramen_recommendation
-    alias: mobile
-  - name: ramen_recommendation_backend
-    alias: backend
-  - name: ramen-infrastructure
+  - name: your-app
+    alias: app
+  - name: your-api
+    alias: api
+  - name: your-infra
     alias: infra
-  - name: ramen_recommendation_design
-    alias: design
 defaults:
   sort: updated
   limit: 30
