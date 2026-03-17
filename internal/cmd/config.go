@@ -33,7 +33,10 @@ var configInitCmd = &cobra.Command{
 
 		// Owner
 		fmt.Print("GitHub owner (user or org): ")
-		owner, _ := reader.ReadString('\n')
+		owner, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("failed to read input: %w", err)
+		}
 		owner = strings.TrimSpace(owner)
 		if owner == "" {
 			return fmt.Errorf("owner is required")
@@ -44,7 +47,10 @@ var configInitCmd = &cobra.Command{
 		fmt.Println("\nAdd repositories (empty name to finish):")
 		for i := 1; ; i++ {
 			fmt.Printf("  Repo %d name: ", i)
-			name, _ := reader.ReadString('\n')
+			name, err := reader.ReadString('\n')
+			if err != nil {
+				break // EOF is acceptable here
+			}
 			name = strings.TrimSpace(name)
 			if name == "" {
 				break
@@ -54,7 +60,10 @@ var configInitCmd = &cobra.Command{
 			alias, _ := reader.ReadString('\n')
 			alias = strings.TrimSpace(alias)
 
-			_ = config.AddRepo(newCfg, name, alias)
+			if err := config.AddRepo(newCfg, name, alias); err != nil {
+				fmt.Printf("  ⚠️  %s (skipped)\n", err)
+				continue
+			}
 			fmt.Println()
 		}
 
@@ -80,10 +89,20 @@ var configInitCmd = &cobra.Command{
 	},
 }
 
+// loadCfg loads the config for config subcommands (since PersistentPreRunE is skipped).
+func loadCfg() error {
+	var err error
+	cfg, err = config.Load()
+	return err
+}
+
 var configShowCmd = &cobra.Command{
 	Use:   "show",
 	Short: "Show current configuration",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := loadCfg(); err != nil {
+			return err
+		}
 		path, _ := config.ConfigPath()
 		fmt.Printf("📁 Config: %s\n\n", path)
 		fmt.Printf("Owner: %s\n\n", cfg.Owner)
@@ -124,6 +143,9 @@ var configAddRepoCmd = &cobra.Command{
 	Short: "Add a repository to the configuration",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := loadCfg(); err != nil {
+			return err
+		}
 		alias, _ := cmd.Flags().GetString("alias")
 
 		if err := config.AddRepo(cfg, args[0], alias); err != nil {
@@ -147,6 +169,9 @@ var configRemoveRepoCmd = &cobra.Command{
 	Short: "Remove a repository from the configuration",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := loadCfg(); err != nil {
+			return err
+		}
 		if err := config.RemoveRepo(cfg, args[0]); err != nil {
 			return err
 		}
@@ -164,6 +189,9 @@ var configSetOwnerCmd = &cobra.Command{
 	Short: "Change the GitHub owner (user or org)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := loadCfg(); err != nil {
+			return err
+		}
 		cfg.Owner = args[0]
 		if err := config.Save(cfg); err != nil {
 			return err

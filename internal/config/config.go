@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	configDir  = "rgm"
-	configFile = "config.yaml"
+	configDir       = "rgm"
+	legacyConfigDir = "ramen-github-manager"
+	configFile      = "config.yaml"
 )
 
 // DefaultConfig returns an empty configuration with sensible defaults.
@@ -26,11 +27,21 @@ func DefaultConfig() *model.Config {
 	}
 }
 
-// AddRepo adds a repository to the config. Returns error if already exists.
+// AddRepo adds a repository to the config.
+// Returns error if name or alias conflicts with any existing entry.
 func AddRepo(cfg *model.Config, name, alias string) error {
 	for _, r := range cfg.Repositories {
 		if r.Name == name {
-			return fmt.Errorf("repository %q already exists", name)
+			return fmt.Errorf("repository name %q already exists", name)
+		}
+		if alias != "" && r.Alias == alias {
+			return fmt.Errorf("alias %q already used by repository %q", alias, r.Name)
+		}
+		if alias != "" && r.Name == alias {
+			return fmt.Errorf("alias %q conflicts with existing repository name", alias)
+		}
+		if r.Alias != "" && r.Alias == name {
+			return fmt.Errorf("name %q conflicts with existing alias of repository %q", name, r.Name)
 		}
 	}
 	cfg.Repositories = append(cfg.Repositories, model.RepoConfig{Name: name, Alias: alias})
@@ -58,6 +69,8 @@ func ConfigPath() (string, error) {
 }
 
 // Load reads and parses the configuration file.
+// Falls back to legacy config path (~/.config/ramen-github-manager/) if the
+// new path does not exist, and automatically migrates the file.
 func Load() (*model.Config, error) {
 	path, err := ConfigPath()
 	if err != nil {
@@ -65,11 +78,28 @@ func Load() (*model.Config, error) {
 	}
 
 	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
+	if err != nil && os.IsNotExist(err) {
+		// Try legacy path
+		legacyPath, lerr := legacyConfigPath()
+		if lerr == nil {
+			data, lerr = os.ReadFile(legacyPath)
+			if lerr == nil {
+				// Migrate: copy to new location
+				if merr := os.MkdirAll(filepath.Dir(path), 0o755); merr == nil {
+					_ = os.WriteFile(path, data, 0o644)
+					fmt.Printf("📦 Migrated config from %s → %s\n", legacyPath, path)
+				}
+			}
+		}
+	}
+
+	if data == nil {
+		if err != nil && os.IsNotExist(err) {
 			return nil, fmt.Errorf("config file not found at %s\nRun 'rgm config init' to create one", path)
 		}
-		return nil, fmt.Errorf("failed to read config: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read config: %w", err)
+		}
 	}
 
 	var cfg model.Config
@@ -78,6 +108,15 @@ func Load() (*model.Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// legacyConfigPath returns the path used by older versions.
+func legacyConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".config", legacyConfigDir, configFile), nil
 }
 
 // Save writes the configuration to disk.

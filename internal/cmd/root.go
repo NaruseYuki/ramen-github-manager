@@ -27,12 +27,11 @@ across multiple repositories in a project.
 Run 'rgm config init' to set up your project, then use 'rgm issue list'
 or 'rgm dashboard' to get started.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Skip config/client init for config init command
-		if cmd.Name() == "init" && cmd.Parent() != nil && cmd.Parent().Name() == "config" {
-			return nil
-		}
-		if cmd.Name() == "config" && len(args) == 0 {
-			return nil
+		// Skip config/client init for all config subcommands (they don't need API)
+		for c := cmd; c != nil; c = c.Parent() {
+			if c.Name() == "config" {
+				return nil
+			}
 		}
 
 		var err error
